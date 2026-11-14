@@ -9,9 +9,11 @@ import {
   Trash2,
   TrendingUp,
   X,
+  Zap,
 } from 'lucide-react';
 import { useStockStore } from '@/store/useStockStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { isMarketOpen } from '@/services/engine/marketTime';
 
 const Container = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
@@ -147,7 +149,7 @@ const MetricValue = styled.div`
   }
 `;
 
-const RatioBadge = styled.span<{ $breakout: boolean }>`
+const RatioBadge = styled.span<{ $variant?: 'extreme' | 'sma' | 'neutral' }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -159,14 +161,21 @@ const RatioBadge = styled.span<{ $breakout: boolean }>`
   white-space: nowrap;
   flex-shrink: 0;
 
-  ${({ $breakout, theme }) =>
-    $breakout
+  ${({ $variant, theme }) =>
+    $variant === 'extreme'
       ? `
     background-color: ${theme.colors.accentGreenBg};
     color: ${theme.colors.accentGreen};
     border: 1px solid ${theme.colors.accentGreenBorder};
     box-shadow: ${theme.colors.accentGreenGlow};
     animation: pulseGlow 2s infinite;
+  `
+      : $variant === 'sma'
+      ? `
+    background-color: rgba(6, 182, 212, 0.15);
+    color: #22d3ee;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.25);
   `
       : `
     background-color: ${theme.colors.bgSecondary};
@@ -191,7 +200,7 @@ const NeutralBadge = styled.span`
   border: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
-const StatusPill = styled.span<{ $type: 'breakout' | 'eod' | 'normal' }>`
+const StatusPill = styled.span<{ $type: 'breakout' | 'sma' | 'eod' | 'normal' }>`
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -207,6 +216,14 @@ const StatusPill = styled.span<{ $type: 'breakout' | 'eod' | 'normal' }>`
     background-color: ${theme.colors.accentGreenBg};
     color: ${theme.colors.accentGreen};
     border: 1px solid ${theme.colors.accentGreenBorder};
+  `}
+
+  ${({ $type, theme }) =>
+    $type === 'sma' &&
+    `
+    background-color: rgba(6, 182, 212, 0.15);
+    color: #22d3ee;
+    border: 1px solid rgba(6, 182, 212, 0.4);
   `}
 
   ${({ $type, theme }) =>
@@ -371,7 +388,10 @@ export const StockTable: React.FC = () => {
           </thead>
           <tbody>
             {displayedWatchlist.map(stock => {
-              const isMorningTrigger = stock.morningBreakout;
+              const isExtremeTrigger = stock.morningRatio >= 10;
+              const isSmaTrigger = stock.morningRatio >= 1.0;
+              const isMorningTrigger = isExtremeTrigger || isSmaTrigger;
+              const marketOpen = isMarketOpen();
 
               return (
                 <Tr key={stock.symbol} $isBreakout={isMorningTrigger}>
@@ -402,8 +422,11 @@ export const StockTable: React.FC = () => {
                             : 'Opening Session'}
                         </span>
                       </MetricValue>
-                      <RatioBadge $breakout={isMorningTrigger}>
-                        {isMorningTrigger && <Flame size={12} />}
+                      <RatioBadge
+                        $variant={isExtremeTrigger ? 'extreme' : isSmaTrigger ? 'sma' : 'neutral'}
+                      >
+                        {isExtremeTrigger && <Flame size={12} />}
+                        {isSmaTrigger && !isExtremeTrigger && <Zap size={11} />}
                         {stock.morningRatio > 0 ? `${stock.morningRatio}x` : '—'}
                       </RatioBadge>
                     </div>
@@ -438,22 +461,62 @@ export const StockTable: React.FC = () => {
                           ? `${stock.baseline200Volume.toLocaleString('en-IN')} shares`
                           : 'Computing...'}
                       </span>
-                      <span className="sub">
-                        High: ₹{stock.baseline200PriceHigh || '—'}
-                      </span>
+                      {stock.currentPrice > 0 ? (
+                        <span
+                          className="sub"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            marginTop: '3px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <span style={{ color: '#F8FAFC' }}>
+                            ₹{stock.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          {stock.changePercent !== 0 && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                color: stock.changePercent >= 0 ? '#10B981' : '#EF4444',
+                              }}
+                            >
+                              ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                            </span>
+                          )}
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              color: '#64748B',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.4px',
+                            }}
+                          >
+                            • {marketOpen ? 'LTP' : 'Close'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="sub">—</span>
+                      )}
                     </MetricValue>
                   </Td>
 
                   <Td>
-                    {isMorningTrigger ? (
+                    {isExtremeTrigger ? (
                       <StatusPill $type="breakout">
                         <Flame size={12} />
-                        10x Breakout
+                        <span>10x Breakout</span>
+                      </StatusPill>
+                    ) : isSmaTrigger ? (
+                      <StatusPill $type="sma">
+                        <Zap size={12} />
+                        <span>Above 200 SMA</span>
                       </StatusPill>
                     ) : (
                       <StatusPill $type="normal">
                         <Clock size={12} />
-                        Surveillance Active
+                        <span>Monitoring</span>
                       </StatusPill>
                     )}
                   </Td>

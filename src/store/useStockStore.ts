@@ -23,7 +23,7 @@ const DEFAULT_WATCHLIST_INSTRUMENTS: Instrument[] = [
   POPULAR_NSE_INSTRUMENTS[1], // TCS
   POPULAR_NSE_INSTRUMENTS[2], // HDFCBANK
   POPULAR_NSE_INSTRUMENTS[3], // INFY
-  POPULAR_NSE_INSTRUMENTS[6], // TATAMOTORS
+  POPULAR_NSE_INSTRUMENTS[6], // TMCV (Tata Motors Commercial)
 ];
 
 const ALL_TIMEFRAMES: Timeframe[] = ['1min', '5min', '15min', 'daily', 'weekly', 'monthly'];
@@ -257,10 +257,15 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
           await saveCandleHistory(stock.instrumentKey, tf, candles, avgVolume, avgHigh);
         } catch (apiErr) {
           console.warn(`[StockStore] Historical fetch failed for ${symbol} [${tf}]:`, apiErr);
-          candles = client.generateMockHistoricalCandles(symbol, tf);
-          const stats = calculateBaselineAverages(candles);
-          avgVolume = stats.avgVolume;
-          avgHigh = stats.avgHigh;
+          if (settings.demoMode) {
+            candles = client.generateMockHistoricalCandles(symbol, tf);
+            const stats = calculateBaselineAverages(candles);
+            avgVolume = stats.avgVolume;
+            avgHigh = stats.avgHigh;
+          } else {
+            avgVolume = 0;
+            avgHigh = 0;
+          }
         }
       }
 
@@ -269,7 +274,11 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
       try {
         intradayCandles = await client.getIntraday1MinuteCandles(symbol);
       } catch (intraErr) {
-        intradayCandles = client.generateMockIntradayCandles(symbol);
+        if (settings.demoMode) {
+          intradayCandles = client.generateMockIntradayCandles(symbol);
+        } else {
+          intradayCandles = [];
+        }
       }
 
       // 3. Extract morning volume depending on timeframe:
@@ -305,15 +314,29 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
         settings.eveningMultiplier
       );
 
+      // Extract current / latest closing price and percentage change
+      const lastClose = candles.length > 0 ? candles[candles.length - 1][4] : 0;
+      const prevClose = candles.length > 1 ? candles[candles.length - 2][4] : lastClose;
+      const resolvedPrice = wholeDayMetrics.lastPrice > 0 ? wholeDayMetrics.lastPrice : lastClose;
+      const priceChange = prevClose > 0 ? Math.round((resolvedPrice - prevClose) * 100) / 100 : 0;
+      const priceChangePercent =
+        prevClose > 0
+          ? Math.round(((resolvedPrice - prevClose) / prevClose) * 10000) / 100
+          : 0;
+
       // 5. Update the specific timeframe's watchlist
       set(state => ({
         watchlists: updateItemInTimeframe(state.watchlists, tf, symbol, item => ({
           ...item,
-          currentPrice: wholeDayMetrics.lastPrice || item.currentPrice,
+          currentPrice: resolvedPrice || item.currentPrice,
+          change: priceChange,
+          changePercent: priceChangePercent,
           morningVolume: morningData.volume,
           morningCandleTimestamp: morningData.timestamp,
           morningRatio: morningEval.ratio,
           morningBreakout: morningEval.isBreakout,
+          isExtremeBreakout: morningEval.isExtremeBreakout,
+          isSmaBreakout: morningEval.isSmaBreakout,
           wholeDayVolume: wholeDayMetrics.totalVolume,
           wholeDayHigh: wholeDayMetrics.high,
           eodRatio: eveningEval.ratio,
@@ -321,7 +344,9 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
           baseline200Volume: avgVolume,
           baseline200PriceHigh: avgHigh,
           lastUpdated: new Date().toISOString(),
-          status: morningEval.isBreakout
+          status: morningEval.isExtremeBreakout
+            ? 'morning_triggered'
+            : morningEval.isSmaBreakout
             ? 'morning_triggered'
             : eveningEval.isBreakout
             ? 'eod_triggered'
@@ -392,12 +417,17 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
           : 'MONTHLY';
 
       if (evalResult.isBreakout) {
+        const isExtreme = evalResult.isExtremeBreakout;
+        const notifTitle = isExtreme
+          ? `🚨 ${stock.symbol} [${tfTag}]: 10x Volume Breakout (${evalResult.ratio}x)!`
+          : `⚡ ${stock.symbol} [${tfTag}]: Volume Above 200 SMA (${evalResult.ratio}x)!`;
+
         await notifStore.addNotification({
           symbol: stock.symbol,
           companyName: stock.companyName,
           type: 'MORNING_BREAKOUT',
           timeframe: tf,
-          title: `🚨 ${stock.symbol} [${tfTag}]: Morning Volume Breakout (${evalResult.ratio}x)!`,
+          title: notifTitle,
           message: `${stock.symbol} traded ${morningData.volume.toLocaleString('en-IN')} shares in ${windowDesc} — ${evalResult.ratio}x the 200-period baseline avg (${stock.baseline200Volume.toLocaleString('en-IN')}).`,
           ratio: evalResult.ratio,
           currentValue: morningData.volume,
@@ -422,7 +452,13 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
           morningVolume: morningData.volume,
           morningRatio: evalResult.ratio,
           morningBreakout: evalResult.isBreakout,
-          status: evalResult.isBreakout ? 'morning_triggered' : item.status,
+          isExtremeBreakout: evalResult.isExtremeBreakout,
+          isSmaBreakout: evalResult.isSmaBreakout,
+          status: evalResult.isExtremeBreakout
+            ? 'morning_triggered'
+            : evalResult.isSmaBreakout
+            ? 'morning_triggered'
+            : item.status,
         })),
       }));
     }

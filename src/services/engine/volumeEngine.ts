@@ -7,7 +7,9 @@ export interface BaselineStats {
 }
 
 export interface MorningEvaluationResult {
-  isBreakout: boolean;
+  isBreakout: boolean;          // true if cdn1 || cdn2 (ratio >= 1.0)
+  isExtremeBreakout: boolean;   // cdn1: ratio >= multiplier (default 10x)
+  isSmaBreakout: boolean;       // cdn2: ratio >= 1.0 (above 200 SMA)
   volume: number;
   baseline: number;
   ratio: number;
@@ -208,14 +210,28 @@ export function evaluateMorningBreakout(
   multiplier = 10
 ): MorningEvaluationResult {
   if (baselineVolume <= 0 || morningVolume <= 0) {
-    return { isBreakout: false, volume: morningVolume, baseline: baselineVolume, ratio: 0 };
+    return {
+      isBreakout: false,
+      isExtremeBreakout: false,
+      isSmaBreakout: false,
+      volume: morningVolume,
+      baseline: baselineVolume,
+      ratio: 0,
+    };
   }
 
   const ratio = Math.round((morningVolume / baselineVolume) * 100) / 100;
-  const isBreakout = morningVolume >= multiplier * baselineVolume;
+  // Condition 1: ratio >= 10x (Extreme Volume Breakout)
+  const isExtremeBreakout = ratio >= multiplier;
+  // Condition 2: ratio >= 1.0x (Volume crossed 200 SMA baseline)
+  const isSmaBreakout = ratio >= 1.0;
+  // Breakout triggers if either condition 1 OR condition 2 is met:
+  const isBreakout = isExtremeBreakout || isSmaBreakout;
 
   return {
     isBreakout,
+    isExtremeBreakout,
+    isSmaBreakout,
     volume: morningVolume,
     baseline: baselineVolume,
     ratio,

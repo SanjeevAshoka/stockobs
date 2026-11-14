@@ -7,7 +7,9 @@ const BASE_URL = '/api/yahoo/v8/finance/chart';
  * e.g. 'RELIANCE' → 'RELIANCE.NS'
  */
 export function toYahooSymbol(symbol: string): string {
-  const s = symbol.trim().toUpperCase();
+  let s = symbol.trim().toUpperCase();
+  // Map retired/demerged NSE ticker TATAMOTORS -> TMCV (Tata Motors Commercial)
+  if (s === 'TATAMOTORS') s = 'TMCV';
   if (s.includes('.')) return s; // already has suffix
   return `${s}.NS`;
 }

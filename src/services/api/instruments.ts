@@ -5,7 +5,9 @@ import { Instrument } from '@/types';
  * e.g. 'RELIANCE' → 'RELIANCE.NS'
  */
 export function toYahooSymbol(symbol: string): string {
-  const s = symbol.trim().toUpperCase();
+  let s = symbol.trim().toUpperCase();
+  // Map retired/demerged NSE ticker TATAMOTORS -> TMCV (Tata Motors Commercial)
+  if (s === 'TATAMOTORS') s = 'TMCV';
   return s.includes('.') ? s : `${s}.NS`;
 }
 
@@ -16,7 +18,7 @@ export const POPULAR_NSE_INSTRUMENTS: Instrument[] = [
   { symbol: 'INFY', instrumentKey: 'NSE_EQ|INE009A01021', name: 'Infosys Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
   { symbol: 'ICICIBANK', instrumentKey: 'NSE_EQ|INE090A01021', name: 'ICICI Bank Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
   { symbol: 'SBIN', instrumentKey: 'NSE_EQ|INE062A01020', name: 'State Bank of India', segment: 'NSE_EQ', exchange: 'NSE' },
-  { symbol: 'TATAMOTORS', instrumentKey: 'NSE_EQ|INE155A01022', name: 'Tata Motors Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
+  { symbol: 'TMCV', instrumentKey: 'NSE_EQ|INE155A01022', name: 'Tata Motors Commercial Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
   { symbol: 'ITC', instrumentKey: 'NSE_EQ|INE154A01025', name: 'ITC Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
   { symbol: 'BHARTIARTL', instrumentKey: 'NSE_EQ|INE397D01024', name: 'Bharti Airtel Ltd', segment: 'NSE_EQ', exchange: 'NSE' },
   { symbol: 'LT', instrumentKey: 'NSE_EQ|INE018A01030', name: 'Larsen & Toubro Ltd', segment: 'NSE_EQ', exchange: 'NSE' },

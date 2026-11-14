@@ -33,6 +33,8 @@ export interface StockWatchItem {
   morningVolume: number;
   morningRatio: number;
   morningBreakout: boolean;
+  isExtremeBreakout?: boolean; // cdn1: >= 10x
+  isSmaBreakout?: boolean;     // cdn2: >= 1x
 
   // Evening metrics (3:30 PM EOD)
   wholeDayVolume: number;
