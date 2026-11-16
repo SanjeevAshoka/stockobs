@@ -305,14 +305,23 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
         avgVolume,
         settings.morningMultiplier
       );
-      const eveningEval = evaluateEveningCondition(
-        wholeDayMetrics.totalVolume,
-        wholeDayMetrics.high,
-        avgVolume,
-        avgHigh,
-        settings.eveningComparisonMode,
-        settings.eveningMultiplier
-      );
+      const eveningEval =
+        tf === '1min'
+          ? {
+              isBreakout: false,
+              currentValue: 0,
+              baselineValue: 0,
+              ratio: 0,
+              metricType: 'volume' as const,
+            }
+          : evaluateEveningCondition(
+              wholeDayMetrics.totalVolume,
+              wholeDayMetrics.high,
+              avgVolume,
+              avgHigh,
+              settings.eveningComparisonMode,
+              settings.eveningMultiplier
+            );
 
       // Extract current / latest closing price and percentage change
       const lastClose = candles.length > 0 ? candles[candles.length - 1][4] : 0;
@@ -465,6 +474,10 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
   },
 
   runEveningSurveillance: async (tf: Timeframe, simulateBreakout = false) => {
+    // The 1-min tab only supports the single morning volume condition
+    // (09:15 candle volume >= multiplier * 200-period 1-min baseline)
+    if (tf === '1min') return;
+
     const client = getYahooClient();
     const settings = useSettingsStore.getState();
     const notifStore = useNotificationStore.getState();
@@ -499,9 +512,7 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
       await saveEodRecord(stock.instrumentKey, ist.dateStr, dayVol, dayHigh, metrics.lastPrice);
 
       const tfTag =
-        tf === '1min'
-          ? '1-MIN'
-          : tf === '5min'
+        tf === '5min'
           ? '5-MIN'
           : tf === '15min'
           ? '15-MIN'
