@@ -32,6 +32,12 @@ interface YahooChartResponse {
   };
 }
 
+export function toISTIsoString(epochSeconds: number): string {
+  const d = new Date(epochSeconds * 1000);
+  const istDate = new Date(d.getTime() + 5.5 * 3600 * 1000);
+  return istDate.toISOString().substring(0, 19) + '+05:30';
+}
+
 function parseCandleResponse(json: YahooChartResponse): CandleData[] {
   const result = json?.chart?.result?.[0];
   if (!result) return [];
@@ -51,8 +57,8 @@ function parseCandleResponse(json: YahooChartResponse): CandleData[] {
     // Skip null candles (pre/post market gaps)
     if (close === null || close === undefined) continue;
 
-    // Convert Unix epoch seconds → ISO string with IST offset
-    const ts = new Date(timestamps[i] * 1000).toISOString();
+    // Convert Unix epoch seconds → ISO string with IST (+05:30) offset
+    const ts = toISTIsoString(timestamps[i]);
     candles.push([
       ts,
       open ?? 0,

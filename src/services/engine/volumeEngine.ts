@@ -7,7 +7,7 @@ export interface BaselineStats {
 }
 
 export interface MorningEvaluationResult {
-  isBreakout: boolean;          // true if cdn1 || cdn2 (ratio >= 1.0)
+  isBreakout: boolean;          // true ONLY if ratio >= multiplier (10x breakout)
   isExtremeBreakout: boolean;   // cdn1: ratio >= multiplier (default 10x)
   isSmaBreakout: boolean;       // cdn2: ratio >= 1.0 (above 200 SMA)
   volume: number;
@@ -60,15 +60,55 @@ export function calculateBaselineAverages(candles: CandleData[]): BaselineStats 
 }
 
 /**
- * Finds the single 1st-minute opening candle (09:15:00 - 09:15:59 IST).
+ * Returns the minute of the day (0 to 1439) in Indian Standard Time (IST, UTC+05:30).
+ * Handles ISO strings with offset (+05:30), UTC strings (Z), and local dates.
+ */
+export function getISTMinutes(timestamp: string): number {
+  if (timestamp.includes('+05:30')) {
+    const match = timestamp.match(/T(\d{2}):(\d{2}):/);
+    if (match) return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  }
+  const d = new Date(timestamp);
+  const istDate = new Date(d.getTime() + 5.5 * 3600 * 1000);
+  return istDate.getUTCHours() * 60 + istDate.getUTCMinutes();
+}
+
+/**
+ * Finds the single 1st-minute opening candle volume (09:15-09:16 AM IST).
+ * In Yahoo Finance, 09:15:00 tick often records 0 volume and 09:16:00 holds the first completed minute's volume.
+ * We capture the sum of volume traded in the opening 1-minute window (09:15-09:16).
  */
 export function get1MinOpeningCandle(
   candles: CandleData[]
 ): { volume: number; timestamp?: string } {
   if (!candles || candles.length === 0) return { volume: 0 };
-  const matched = candles.find(c => c[0].includes('09:15:'));
-  if (matched) return { volume: matched[5], timestamp: matched[0] };
-  return { volume: candles[0][5], timestamp: candles[0][0] };
+
+  // Look for candles stamped at 09:15 or 09:16 IST (minutes 555 or 556)
+  const openingCandles = candles.filter(c => {
+    const mins = getISTMinutes(c[0]);
+    return mins === 555 || mins === 556;
+  });
+
+  if (openingCandles.length > 0) {
+    const vol = openingCandles.reduce((sum, c) => sum + (c[5] || 0), 0);
+    if (vol > 0) {
+      return { volume: vol, timestamp: openingCandles[0][0] };
+    }
+  }
+
+  // Fallback: If opening candles had 0 volume, take first 2 candles
+  const first2 = candles.slice(0, 2);
+  const first2Vol = first2.reduce((sum, c) => sum + (c[5] || 0), 0);
+  if (first2Vol > 0) {
+    return { volume: first2Vol, timestamp: first2[0][0] };
+  }
+
+  const firstNonZero = candles.find(c => (c[5] || 0) > 0);
+  if (firstNonZero) {
+    return { volume: firstNonZero[5], timestamp: firstNonZero[0] };
+  }
+
+  return { volume: candles[0][5] || 0, timestamp: candles[0][0] };
 }
 
 /**
@@ -80,20 +120,17 @@ export function get5MinOpeningCandle(
   if (!candles || candles.length === 0) return { volume: 0 };
 
   const windowCandles = candles.filter(c => {
-    const timeMatch = c[0].match(/(\d{2}):(\d{2}):/);
-    if (!timeMatch) return false;
-    const hour = parseInt(timeMatch[1], 10);
-    const minute = parseInt(timeMatch[2], 10);
-    return hour === 9 && minute >= 15 && minute < 20;
+    const mins = getISTMinutes(c[0]);
+    return mins >= 555 && mins < 560;
   });
 
   if (windowCandles.length > 0) {
-    const total = windowCandles.reduce((sum, c) => sum + c[5], 0);
-    return { volume: total, timestamp: windowCandles[0][0] };
+    const total = windowCandles.reduce((sum, c) => sum + (c[5] || 0), 0);
+    if (total > 0) return { volume: total, timestamp: windowCandles[0][0] };
   }
 
   const first5 = candles.slice(0, 5);
-  const total = first5.reduce((sum, c) => sum + c[5], 0);
+  const total = first5.reduce((sum, c) => sum + (c[5] || 0), 0);
   return { volume: total, timestamp: candles[0]?.[0] };
 }
 
@@ -107,20 +144,17 @@ export function get15MinCumulativeVolume(
   if (!candles || candles.length === 0) return { volume: 0 };
 
   const windowCandles = candles.filter(c => {
-    const timeMatch = c[0].match(/(\d{2}):(\d{2}):/);
-    if (!timeMatch) return false;
-    const hour = parseInt(timeMatch[1], 10);
-    const minute = parseInt(timeMatch[2], 10);
-    return hour === 9 && minute >= 15 && minute < 30;
+    const mins = getISTMinutes(c[0]);
+    return mins >= 555 && mins < 570;
   });
 
   if (windowCandles.length > 0) {
-    const total = windowCandles.reduce((sum, c) => sum + c[5], 0);
-    return { volume: total, timestamp: windowCandles[0][0] };
+    const total = windowCandles.reduce((sum, c) => sum + (c[5] || 0), 0);
+    if (total > 0) return { volume: total, timestamp: windowCandles[0][0] };
   }
 
   const first15 = candles.slice(0, 15);
-  const total = first15.reduce((sum, c) => sum + c[5], 0);
+  const total = first15.reduce((sum, c) => sum + (c[5] || 0), 0);
   return { volume: total, timestamp: candles[0]?.[0] };
 }
 
@@ -136,11 +170,15 @@ export function findMorningCandle(
     return { volume: 0 };
   }
 
-  // targetTime '9:16' corresponds to candle opened at 09:15:00
-  // targetTime '9:30' corresponds to 15th minute candle opened at 09:29:00
-  const searchPattern = targetTime === '9:16' ? '09:15:' : '09:29:';
+  if (targetTime === '9:16') {
+    return get1MinOpeningCandle(candles);
+  }
 
-  const matched = candles.find(c => c[0].includes(searchPattern));
+  // targetTime '9:30' corresponds to 15th minute candle (09:29:00-09:29:59 IST, minute 569)
+  const matched = candles.find(c => {
+    const mins = getISTMinutes(c[0]);
+    return mins === 569 || mins === 570;
+  });
   if (matched) {
     return {
       volume: matched[5],
@@ -148,12 +186,10 @@ export function findMorningCandle(
     };
   }
 
-  // Fallback: If candles are sorted descending (newest first), market open is at the end of the array
-  // If sorted ascending (oldest first), 9:15 is index 0 and 9:29 is index 14
   const isAscending = new Date(candles[0][0]).getTime() < new Date(candles[candles.length - 1][0]).getTime();
   const sorted = isAscending ? candles : [...candles].reverse();
 
-  const index = targetTime === '9:16' ? 0 : 14;
+  const index = 14;
   if (sorted.length > index) {
     return {
       volume: sorted[index][5],
@@ -202,7 +238,7 @@ export function calculateWholeDayMetrics(candles: CandleData[]): {
 
 /**
  * Evaluates the Morning Breakout condition:
- * Morning Volume >= multiplier * 200-period baseline volume
+ * Strictly triggers ONLY when morning traded volume >= multiplier * 200-period baseline (>= 10x).
  */
 export function evaluateMorningBreakout(
   morningVolume: number,
@@ -221,12 +257,10 @@ export function evaluateMorningBreakout(
   }
 
   const ratio = Math.round((morningVolume / baselineVolume) * 100) / 100;
-  // Condition 1: ratio >= 10x (Extreme Volume Breakout)
+  // Strictly ONE condition for morning/1-min: volume must be >= 10x baseline volume
   const isExtremeBreakout = ratio >= multiplier;
-  // Condition 2: ratio >= 1.0x (Volume crossed 200 SMA baseline)
   const isSmaBreakout = ratio >= 1.0;
-  // Breakout triggers if either condition 1 OR condition 2 is met:
-  const isBreakout = isExtremeBreakout || isSmaBreakout;
+  const isBreakout = isExtremeBreakout;
 
   return {
     isBreakout,
