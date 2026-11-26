@@ -1,4 +1,4 @@
-export type Timeframe = '1min' | '5min' | '15min' | 'daily' | 'weekly' | 'monthly';
+export type Timeframe = '1min' | '5min' | '15min' | 'daily' | 'smacross' | 'weekly' | 'monthly';
 
 export type MarketStatus = 'OPEN' | 'PRE_MARKET' | 'CLOSED';
 

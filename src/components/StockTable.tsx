@@ -300,7 +300,9 @@ export const StockTable: React.FC = () => {
 
   const fullWatchlist = watchlists[activeTimeframe] || [];
   const displayedWatchlist = filterAlertsOnly
-    ? fullWatchlist.filter(s => s.morningBreakout)
+    ? fullWatchlist.filter(s =>
+        s.morningBreakout || (activeTimeframe === 'smacross' && s.eodBreakout)
+      )
     : fullWatchlist;
 
   if (fullWatchlist.length === 0) {
@@ -340,6 +342,8 @@ export const StockTable: React.FC = () => {
       ? 'Volume 200 SMA (15-Min)'
       : activeTimeframe === 'daily'
       ? 'Volume 200 SMA (Daily)'
+      : activeTimeframe === 'smacross'
+      ? 'Volume 200 SMA (Daily, 1x)'
       : activeTimeframe === 'weekly'
       ? 'Volume 200 SMA (Weekly)'
       : 'Volume 200 SMA (Monthly)';
@@ -351,7 +355,7 @@ export const StockTable: React.FC = () => {
       ? '5-Min Volume (09:15–09:20)'
       : activeTimeframe === '15min'
       ? '15-Min Duration (09:15–09:30)'
-      : activeTimeframe === 'daily'
+      : activeTimeframe === 'daily' || activeTimeframe === 'smacross'
       ? "Today's Traded Volume"
       : activeTimeframe === 'weekly'
       ? 'Weekly Traded Volume'
@@ -390,7 +394,9 @@ export const StockTable: React.FC = () => {
             {displayedWatchlist.map(stock => {
               const isExtremeTrigger = stock.morningRatio >= 10;
               const isSmaTrigger = stock.morningRatio >= 1.0;
-              const isMorningTrigger = isExtremeTrigger || isSmaTrigger;
+              const isSmaCrossTrigger =
+                activeTimeframe === 'smacross' && stock.eodBreakout;
+              const isMorningTrigger = isExtremeTrigger || isSmaTrigger || isSmaCrossTrigger;
               const marketOpen = isMarketOpen();
 
               return (
@@ -417,7 +423,7 @@ export const StockTable: React.FC = () => {
                             ? '09:15–09:20 Window'
                             : activeTimeframe === '15min'
                             ? '09:15–09:30 Window'
-                            : activeTimeframe === 'daily'
+                            : activeTimeframe === 'daily' || activeTimeframe === 'smacross'
                             ? 'Today Cumulative'
                             : 'Opening Session'}
                         </span>
@@ -451,6 +457,11 @@ export const StockTable: React.FC = () => {
                       <NeutralBadge>
                         {stock.eodRatio > 0 ? `${stock.eodRatio}x` : '—'}
                       </NeutralBadge>
+                      {isSmaCrossTrigger && (
+                        <StatusPill $type="sma">
+                          <Zap size={11} />
+                        </StatusPill>
+                      )}
                     </div>
                   </Td>
 
@@ -507,6 +518,11 @@ export const StockTable: React.FC = () => {
                       <StatusPill $type="breakout">
                         <Flame size={12} />
                         <span>10x Breakout</span>
+                      </StatusPill>
+                    ) : isSmaCrossTrigger ? (
+                      <StatusPill $type="sma">
+                        <Zap size={12} />
+                        <span>≥1x Baseline (EOD)</span>
                       </StatusPill>
                     ) : isSmaTrigger ? (
                       <StatusPill $type="sma">

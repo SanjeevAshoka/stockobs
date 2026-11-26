@@ -26,7 +26,7 @@ const DEFAULT_WATCHLIST_INSTRUMENTS: Instrument[] = [
   POPULAR_NSE_INSTRUMENTS[6], // TMCV (Tata Motors Commercial)
 ];
 
-const ALL_TIMEFRAMES: Timeframe[] = ['1min', '5min', '15min', 'daily', 'weekly', 'monthly'];
+const ALL_TIMEFRAMES: Timeframe[] = ['1min', '5min', '15min', 'daily', 'smacross', 'weekly', 'monthly'];
 
 // Per-timeframe independent watchlist data
 type TimeframeWatchlists = Record<Timeframe, StockWatchItem[]>;
@@ -96,6 +96,7 @@ function emptyWatchlists(instruments: Instrument[]): TimeframeWatchlists {
     '5min': items.map(i => ({ ...i })),
     '15min': items.map(i => ({ ...i })),
     daily: items.map(i => ({ ...i })),
+    smacross: items.map(i => ({ ...i })),
     weekly: items.map(i => ({ ...i })),
     monthly: items.map(i => ({ ...i })),
   };
@@ -124,9 +125,9 @@ function getWatchlistInstruments(watchlists: TimeframeWatchlists): Instrument[] 
 }
 
 export const useStockStore = create<StockStoreState>((set, get) => ({
-  watchlists: { '1min': [], '5min': [], '15min': [], daily: [], weekly: [], monthly: [] },
+  watchlists: { '1min': [], '5min': [], '15min': [], daily: [], smacross: [], weekly: [], monthly: [] },
   activeTimeframe: '15min',
-  unreadByTimeframe: { '1min': 0, '5min': 0, '15min': 0, daily: 0, weekly: 0, monthly: 0 },
+  unreadByTimeframe: { '1min': 0, '5min': 0, '15min': 0, daily: 0, smacross: 0, weekly: 0, monthly: 0 },
   filterAlertsOnly: false,
   isRefreshing: false,
   lastSyncTime: null,
@@ -180,6 +181,7 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
         '5min': [...state.watchlists['5min'], { ...newItem }],
         '15min': [...state.watchlists['15min'], { ...newItem }],
         daily: [...state.watchlists.daily, { ...newItem }],
+        smacross: [...state.watchlists.smacross, { ...newItem }],
         weekly: [...state.watchlists.weekly, { ...newItem }],
         monthly: [...state.watchlists.monthly, { ...newItem }],
       },
@@ -202,6 +204,7 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
         '5min': state.watchlists['5min'].filter(s => s.symbol !== symbol),
         '15min': state.watchlists['15min'].filter(s => s.symbol !== symbol),
         daily: state.watchlists.daily.filter(s => s.symbol !== symbol),
+        smacross: state.watchlists.smacross.filter(s => s.symbol !== symbol),
         weekly: state.watchlists.weekly.filter(s => s.symbol !== symbol),
         monthly: state.watchlists.monthly.filter(s => s.symbol !== symbol),
       },
@@ -300,11 +303,22 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
       }
 
       // 4. Evaluate conditions
-      const morningEval = evaluateMorningBreakout(
-        morningData.volume,
-        avgVolume,
-        settings.morningMultiplier
-      );
+      // 'smacross' has a single condition only: day value >= 1x 200-period baseline
+      const morningEval =
+        tf === 'smacross'
+          ? {
+              isBreakout: false,
+              isExtremeBreakout: false,
+              isSmaBreakout: false,
+              volume: 0,
+              baseline: 0,
+              ratio: 0,
+            }
+          : evaluateMorningBreakout(
+              morningData.volume,
+              avgVolume,
+              settings.morningMultiplier
+            );
       const eveningEval =
         tf === '1min'
           ? {
@@ -320,7 +334,7 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
               avgVolume,
               avgHigh,
               settings.eveningComparisonMode,
-              settings.eveningMultiplier
+              tf === 'smacross' ? 1.0 : settings.eveningMultiplier
             );
 
       // Extract current / latest closing price and percentage change
@@ -368,6 +382,9 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
   },
 
   runMorningSurveillance: async (tf: Timeframe, simulateBreakout = false) => {
+    // The SMA Cross tab only supports the EOD >=1x baseline condition
+    if (tf === 'smacross') return;
+
     const client = getYahooClient();
     const settings = useSettingsStore.getState();
     const notifStore = useNotificationStore.getState();
@@ -506,7 +523,7 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
         stock.baseline200Volume,
         stock.baseline200PriceHigh,
         settings.eveningComparisonMode,
-        settings.eveningMultiplier
+        tf === 'smacross' ? 1.0 : settings.eveningMultiplier
       );
 
       await saveEodRecord(stock.instrumentKey, ist.dateStr, dayVol, dayHigh, metrics.lastPrice);
@@ -518,6 +535,8 @@ export const useStockStore = create<StockStoreState>((set, get) => ({
           ? '15-MIN'
           : tf === 'daily'
           ? 'DAILY'
+          : tf === 'smacross'
+          ? 'DAILY-1X'
           : tf === 'weekly'
           ? 'WEEKLY'
           : 'MONTHLY';

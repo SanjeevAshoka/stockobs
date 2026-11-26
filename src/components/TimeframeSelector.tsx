@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Calendar, CalendarDays, CalendarRange, Clock, Layers, Zap } from 'lucide-react';
+import { Calendar, CalendarDays, CalendarRange, Clock, Layers, TrendingUp, Zap } from 'lucide-react';
 import { Timeframe } from '@/types';
 import { useStockStore } from '@/store/useStockStore';
 
@@ -105,6 +105,7 @@ export const TimeframeSelector: React.FC = () => {
     { tf: '5min', label: '5-Min (09:15–09:20)', icon: <Clock size={14} /> },
     { tf: '15min', label: '15-Min (09:15–09:30)', icon: <Layers size={14} /> },
     { tf: 'daily', label: 'Daily (Full Day / EOD)', icon: <Calendar size={14} /> },
+    { tf: 'smacross', label: 'Daily(1*EOD)', icon: <TrendingUp size={14} /> },
     { tf: 'weekly', label: 'Weekly (200-Week Flow)', icon: <CalendarDays size={14} /> },
     { tf: 'monthly', label: 'Monthly (200-Month Flow)', icon: <CalendarRange size={14} /> },
   ];
@@ -118,6 +119,8 @@ export const TimeframeSelector: React.FC = () => {
       ? 'Volume 200 SMA (15-Min Bars)'
       : activeTimeframe === 'daily'
       ? 'Volume 200 SMA (Daily Trading Days)'
+      : activeTimeframe === 'smacross'
+      ? 'Volume 200 SMA (Daily Trading Days, 1x)'
       : activeTimeframe === 'weekly'
       ? 'Volume 200 SMA (Weekly Bars)'
       : 'Volume 200 SMA (Monthly Bars)';

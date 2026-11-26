@@ -409,7 +409,9 @@ export const WatchlistManager: React.FC = () => {
   };
 
   const topSuggestions = POPULAR_NSE_INSTRUMENTS.slice(0, 8);
-  const alertCount = currentList.filter(s => s.morningBreakout).length;
+  const alertCount = currentList.filter(s =>
+    s.morningBreakout || (activeTimeframe === 'smacross' && s.eodBreakout)
+  ).length;
   const tfDisplay =
     activeTimeframe === '1min'
       ? '1-Min'
@@ -419,6 +421,8 @@ export const WatchlistManager: React.FC = () => {
       ? '15-Min'
       : activeTimeframe === 'daily'
       ? 'Daily'
+      : activeTimeframe === 'smacross'
+      ? 'Daily(1*EOD)'
       : activeTimeframe === 'weekly'
       ? 'Weekly'
       : 'Monthly';

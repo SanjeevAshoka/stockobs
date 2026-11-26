@@ -192,6 +192,7 @@ export const MarketSimulator: React.FC = () => {
           <option value="5min">5-Min Tab (09:15–09:20)</option>
           <option value="15min">15-Min Tab (09:15–09:30)</option>
           <option value="daily">Daily Tab (Full Day / EOD)</option>
+          <option value="smacross">Daily(1*EOD) Tab</option>
           <option value="weekly">Weekly Tab</option>
           <option value="monthly">Monthly Tab</option>
         </TimeframeSelect>

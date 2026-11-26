@@ -324,6 +324,8 @@ export const NotificationDrawer: React.FC = () => {
                         ? '15-MIN'
                         : notif.timeframe === 'daily'
                         ? 'DAILY'
+                        : notif.timeframe === 'smacross'
+                        ? 'DAILY-1X'
                         : notif.timeframe
                         ? notif.timeframe.toUpperCase()
                         : '15-MIN'}

@@ -123,7 +123,7 @@ export class YahooFinanceClient {
     } else if (timeframe === '15min') {
       interval = '15m';
       range = '60d';
-    } else if (timeframe === 'daily') {
+    } else if (timeframe === 'daily' || timeframe === 'smacross') {
       interval = '1d';
       range = '2y';
     } else if (timeframe === 'weekly') {
@@ -270,7 +270,7 @@ export class YahooFinanceClient {
         d.setMinutes(d.getMinutes() - (i + 1) * 5);
       } else if (timeframe === '15min') {
         d.setMinutes(d.getMinutes() - (i + 1) * 15);
-      } else if (timeframe === 'daily') {
+      } else if (timeframe === 'daily' || timeframe === 'smacross') {
         d.setDate(d.getDate() - (i + 1));
       } else if (timeframe === 'weekly') {
         d.setDate(d.getDate() - (i + 1) * 7);

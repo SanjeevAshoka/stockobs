@@ -22,6 +22,7 @@ class MarketScheduler {
     '5min': null,
     '15min': null,
     daily: null,
+    smacross: null,
     weekly: null,
     monthly: null,
   };
@@ -30,6 +31,7 @@ class MarketScheduler {
     '5min': null,
     '15min': null,
     daily: null,
+    smacross: null,
     weekly: null,
     monthly: null,
   };
@@ -46,6 +48,7 @@ class MarketScheduler {
       '5min': localStorage.getItem('stockobs_morning_5min'),
       '15min': localStorage.getItem('stockobs_morning_15min'),
       daily: localStorage.getItem('stockobs_morning_daily'),
+      smacross: localStorage.getItem('stockobs_morning_smacross'),
       weekly: localStorage.getItem('stockobs_morning_weekly'),
       monthly: localStorage.getItem('stockobs_morning_monthly'),
     };
@@ -54,6 +57,7 @@ class MarketScheduler {
       '5min': localStorage.getItem('stockobs_evening_5min'),
       '15min': localStorage.getItem('stockobs_evening_15min'),
       daily: localStorage.getItem('stockobs_evening_daily'),
+      smacross: localStorage.getItem('stockobs_evening_smacross'),
       weekly: localStorage.getItem('stockobs_evening_weekly'),
       monthly: localStorage.getItem('stockobs_evening_monthly'),
     };
@@ -124,6 +128,14 @@ class MarketScheduler {
       localStorage.setItem('stockobs_evening_daily', today);
       console.log('[Scheduler] Daily EOD surveillance (3:30 PM EOD)...');
       store.runEveningSurveillance('daily').catch(console.error);
+    }
+
+    // ─── SMA-CROSS Engine (03:30 PM IST: day value >= 1x 200-period daily baseline) ───
+    if (isPastClose && this.lastEveningScanDate.smacross !== today) {
+      this.lastEveningScanDate.smacross = today;
+      localStorage.setItem('stockobs_evening_smacross', today);
+      console.log('[Scheduler] SMA-Cross EOD surveillance (3:30 PM, >=1x baseline)...');
+      store.runEveningSurveillance('smacross').catch(console.error);
     }
 
     // ─── WEEKLY Engine (morning: Monday 9:30 AM, evening: Friday 3:30 PM) ───
